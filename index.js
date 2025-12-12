@@ -34,15 +34,56 @@ app.post('/register', async (req, res) => {
         return res.status(400).send({ error: 'User exists' });
     }
 
-    const hash = await bcrypt.hash(password, 10);
-    const deviceKey = generateDeviceKey(clientInfo);
+    try {
+        const hash = await bcrypt.hash(password, 10);
+        const deviceKey = generateDeviceKey(clientInfo);
 
-    users[username] = { hash, email, deviceKey, token: null };
-    res.send({ status: 'ok', deviceKey });
+        users[username] = { hash, email, deviceKey, token: null };
+        res.send({ status: 'ok', deviceKey });
+    } catch (err) {
+        res.status(500).send({ error: 'Server error' });
+    }
 });
 
 // --- Login ---
 app.post('/login', async (req, res) => {
     const { username, password, clientInfo } = req.body;
     const user = users[username];
-    if (!user) return res.status(400).send({ error: '
+    if (!user) return res.status(400).send({ error: 'User not found' });
+
+    try {
+        const match = await bcrypt.compare(password, user.hash);
+        if (!match) return res.status(401).send({ error: 'Wrong password' });
+
+        const deviceKey = generateDeviceKey(clientInfo);
+        if (deviceKey !== user.deviceKey) return res.status(401).send({ error: 'Invalid device' });
+
+        // Generate token valid for 5 minutes
+        const token = crypto.randomBytes(16).toString('hex');
+        user.token = { value: token, expires: Date.now() + 5 * 60 * 1000 };
+
+        res.send({ token });
+    } catch (err) {
+        res.status(500).send({ error: 'Server error' });
+    }
+});
+
+// --- Verify token ---
+app.post('/verify-token', (req, res) => {
+    const { username, token, clientInfo } = req.body;
+    const user = users[username];
+    if (!user || !user.token) return res.status(400).send({ error: 'Invalid token' });
+
+    const deviceKey = generateDeviceKey(clientInfo);
+    if (deviceKey !== user.deviceKey) return res.status(401).send({ error: 'Invalid device' });
+
+    if (user.token.value === token && user.token.expires > Date.now()) {
+        res.send({ status: 'ok' });
+    } else {
+        res.status(401).send({ error: 'Token invalid or expired' });
+    }
+});
+
+// --- Start server ---
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
