@@ -9,46 +9,47 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-const users = {}; // simple in-memory storage (replace with DB later)
+// Store users in memory for now (replace with DB later)
+const users = {};
+
+// --- Helper: generate device key from browser (frontend will send navigator.userAgent + random seed) ---
+function generateDeviceKey(clientInfo) {
+    return crypto.createHash('sha256').update(clientInfo).digest('hex');
+}
 
 // --- Registration ---
 app.post('/register', async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).send({ error: 'Missing fields' });
+    const { username, email, password, clientInfo } = req.body;
+    if (!username || !password || !email || !clientInfo) return res.status(400).send({ error: 'Missing fields' });
     if (users[username]) return res.status(400).send({ error: 'User exists' });
 
     const hash = await bcrypt.hash(password, 10);
-    users[username] = { hash };
-    res.send({ status: 'ok' });
+    const deviceKey = generateDeviceKey(clientInfo);
+
+    users[username] = { hash, email, deviceKey, token: null };
+    res.send({ status: 'ok', deviceKey });
 });
 
-// --- Login & token generation ---
+// --- Login ---
 app.post('/login', async (req, res) => {
-    const { username, password, deviceId } = req.body;
+    const { username, password, clientInfo } = req.body;
     const user = users[username];
     if (!user) return res.status(400).send({ error: 'User not found' });
 
     const match = await bcrypt.compare(password, user.hash);
     if (!match) return res.status(401).send({ error: 'Wrong password' });
 
+    // Check device key
+    const deviceKey = generateDeviceKey(clientInfo);
+    if (deviceKey !== user.deviceKey) return res.status(401).send({ error: 'Invalid device' });
+
+    // Generate 5-minute token
     const token = crypto.randomBytes(16).toString('hex');
-    user.token = { value: token, deviceId, expires: Date.now() + 5*60*1000 }; // 5 min expiry
+    user.token = { value: token, expires: Date.now() + 5 * 60 * 1000 }; // 5 minutes
+
     res.send({ token });
 });
 
-// --- Token verification ---
+// --- Verify token ---
 app.post('/verify-token', (req, res) => {
-    const { username, token, deviceId } = req.body;
-    const user = users[username];
-    if (!user || !user.token) return res.status(400).send({ error: 'Invalid token' });
-
-    if (user.token.value === token && user.token.deviceId === deviceId && user.token.expires > Date.now()) {
-        return res.send({ status: 'ok' });
-    } else {
-        return res.status(401).send({ error: 'Token invalid or expired' });
-    }
-});
-
-// --- Start server ---
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    const { username, token, cli
