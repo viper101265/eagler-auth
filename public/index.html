@@ -2,16 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>EaglerXServer Auth</title>
+  <title>EaglerX Auth</title>
   <style>
     body { font-family: Arial; margin: 40px; }
-    input { margin: 5px 0; display: block; padding: 8px; width: 300px; }
-    button { padding: 8px 16px; margin-top: 10px; }
+    input, button { display: block; margin: 8px 0; padding: 8px; width: 300px; }
     #response { margin-top: 20px; white-space: pre-wrap; }
   </style>
 </head>
 <body>
-  <h1>EaglerXServer Auth</h1>
+  <h1>EaglerX Auth</h1>
 
   <h2>Register</h2>
   <input type="text" id="regUsername" placeholder="Username">
@@ -27,9 +26,7 @@
   <div id="response"></div>
 
   <script>
-    const backendUrl = 'https://eagler-auth.onrender.com'; // replace with your Render URL
-
-    // Generate a device key from browser info
+    const backendUrl = 'https://eagler-auth.onrender.com';
     const deviceKey = btoa(navigator.userAgent + '-' + Math.random());
 
     async function register() {
@@ -59,9 +56,7 @@
 
       const data = await res.json();
       document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-      if (data.token) {
-        localStorage.setItem('eaglerToken', data.token);
-      }
+      if (data.token) localStorage.setItem('eaglerToken', data.token);
     }
   </script>
 </body>
